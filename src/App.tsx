@@ -46,9 +46,9 @@ function App() {
                 </div>
 
                 {/* Right Sidebar (scrollable) */}
-                <div className="w-[300px] xl:w-[320px] flex-shrink-0 border-l border-slate-200 bg-[#F6F8FB] overflow-y-auto p-4 space-y-4">
+                {/* <div className="w-[300px] xl:w-[320px] flex-shrink-0 border-l border-slate-200 bg-[#F6F8FB] overflow-y-auto p-4 space-y-4">
                   <OffersPanel />
-                </div>
+                </div> */}
               </motion.div>
             ) : (
               <motion.div
