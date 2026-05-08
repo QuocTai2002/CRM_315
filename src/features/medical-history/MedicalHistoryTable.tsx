@@ -10,7 +10,9 @@ export function MedicalHistoryTable() {
 
   const records = useMemo(() => {
     if (!selectedPatient) return [];
-    return medicalHistories.filter((h) => h.patientId === selectedPatient.id).sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+    return medicalHistories
+      .filter((h) => h.patientId === selectedPatient.id)
+      .sort((a, b) => b.visitDate.localeCompare(a.visitDate));
   }, [selectedPatient]);
 
   if (!selectedPatient) return null;
@@ -45,8 +47,8 @@ export function MedicalHistoryTable() {
               </tr>
             </thead>
             <tbody>
-              {records.slice(0, 5).map((record) => (
-                <tr key={record.id} className="border-b border-[#f4f5f7] history-row cursor-pointer group transition-colors">
+              {records.map((record) => (
+                <tr key={record.id} className="border-b border-[#f4f5f7] history-row cursor-pointer group transition-colors hover:bg-[#f8f9fb]">
                   <td className="py-3 pr-4 text-[#080808] font-medium whitespace-nowrap">{formatDate(record.visitDate)}</td>
                   <td className="py-3 pr-4 text-[#080808] font-semibold">{record.diagnosis}</td>
                   <td className="py-3 pr-4 text-[#363636] font-medium">{record.doctor}</td>

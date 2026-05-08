@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Phone, CreditCard, Crown, AlertTriangle } from 'lucide-react';
 import { usePatientStore } from '@/store/patientStore';
-import { memberships, lifecycleStages, encounters, appointments } from '@/mock/data';
+import { memberships, medicalHistories, encounters, appointments } from '@/mock/data';
 import { calculateAge, formatDate, getInitials, getProgramLabel } from '@/shared/utils';
 
 export function PatientSummary() {
@@ -10,9 +10,28 @@ export function PatientSummary() {
 
   const age = calculateAge(selectedPatient.dob);
   const membership = memberships.find((m) => m.patientId === selectedPatient.id && m.status === 'active');
-  const currentStage = activeLifecycle
-    ? lifecycleStages.find((s) => s.lifecycleId === activeLifecycle.id && s.status === 'active')
-    : null;
+  
+  // Find the soonest re-exam date from history (matching LifecycleTimeline logic)
+  const history = medicalHistories
+    .filter((h) => h.patientId === selectedPatient.id)
+    .sort((a, b) => a.visitDate.localeCompare(b.visitDate));
+
+  const pendingReExams: any[] = [];
+  history.forEach(h => {
+    if (h.reExamDate) {
+      const hasSubsequent = history.some(h2 => h2.lifecycle === h.lifecycle && h2.visitDate > h.visitDate);
+      if (!hasSubsequent) {
+        pendingReExams.push({
+          date: h.reExamDate,
+          lifecycle: h.lifecycle,
+          title: h.lifecycle === 'vaccination' ? 'Tiêm chủng' : `Khám ${getProgramLabel(h.lifecycle || 'other').toLowerCase()}`
+        });
+      }
+    }
+  });
+
+  pendingReExams.sort((a, b) => a.date.localeCompare(b.date));
+  const nextStep = pendingReExams[0];
 
   const patientEncounters = encounters.filter(e => e.patientId === selectedPatient.id);
   const patientAppointments = appointments.filter(a => a.patientId === selectedPatient.id);
@@ -91,20 +110,19 @@ export function PatientSummary() {
 
         {/* ===== CENTER: Current Status ===== */}
         <div className="flex-1 border-l border-[#d8d8d8] pl-6 min-w-[200px]">
-          <p className="label-upper mb-1">Trạng thái hiện tại</p>
+          <p className="label-upper mb-1">Trạng thái tiếp theo</p>
           <h3 className="text-[22px] font-bold text-[#080808] leading-tight mb-1">
-            {currentStage?.title || 'N/A'} {activeLifecycle ? getProgramLabel(activeLifecycle.program).toLowerCase() : ''}
+            {nextStep ? (nextStep.lifecycle === 'vaccination' ? 'Tiêm chủng' : getProgramLabel(nextStep.lifecycle)) : 'Chưa có lịch hẹn'}
           </h3>
-          <p className="text-[12px] text-[#5a5a5a] mb-3">
-            Cần {currentStage?.recommendedServices?.[0]?.toLowerCase() || 'theo dõi'}
+          <p className="text-[13px] text-[#146ef5] font-bold mb-3 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Tái khám ngày {nextStep ? formatDate(nextStep.date) : '--/--/----'}
           </p>
-          {/* Status tags */}
-          <div className="flex gap-2 flex-wrap">
-            {currentStage?.recommendedServices?.slice(0, 2).map((svc, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#fff9eb] text-[11px] font-semibold text-[#ff9f43] rounded-[4px] border border-dashed border-[#ff9f43]">
-                <AlertTriangle className="w-3.5 h-3.5" /> Chưa {svc.toLowerCase().includes('tiêm') ? 'tiêm' : 'làm'} {svc.length > 20 ? svc.slice(0, 20) + '...' : svc.split(' ').slice(-2).join(' ')}
-              </span>
-            ))}
+          {/* Action indicator */}
+          <div className="flex gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#f0f6ff] text-[11px] font-semibold text-[#146ef5] rounded-[4px] border border-dashed border-[#146ef5]">
+              Cần thực hiện: {nextStep ? nextStep.title : 'Theo dõi thêm'}
+            </span>
           </div>
         </div>
 
@@ -114,12 +132,14 @@ export function PatientSummary() {
             <p className="label-upper mb-2">Thông tin thẻ</p>
             {membership ? (
               <>
-                <div className="flex items-center gap-2 mb-2">
-                  <CreditCard className="w-4 h-4 text-[#146ef5]" />
-                  <h3 className="text-[14px] font-bold text-[#080808] leading-tight">
-                    {membership.type}
-                  </h3>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#00d722]/10 text-[#00d722] text-[9px] font-bold rounded-[4px] uppercase">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex gap-2">
+                    <CreditCard className="w-4 h-4 text-[#146ef5] mt-0.5 shrink-0" />
+                    <h3 className="text-[14px] font-bold text-[#080808] leading-tight max-w-[180px]">
+                      {membership.type}
+                    </h3>
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-[#00d722]/10 text-[#00d722] text-[9px] font-bold rounded-[4px] uppercase shrink-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#00d722]" /> Hiệu lực
                   </span>
                 </div>
@@ -143,18 +163,11 @@ export function PatientSummary() {
                 </div>
               </>
             ) : (
-              <div className="bg-[#FFF8E1] border border-[#F59E0B] rounded-[6px] p-3 text-left w-full mt-1">
-                <span className="inline-block px-2 py-0.5 bg-[#F59E0B] text-white text-[10px] font-bold rounded-[3px] mb-1.5 uppercase tracking-wide">
-                  Ưu đãi hội viên
-                </span>
-                <h4 className="text-[13px] font-bold text-[#080808] mb-1.5 leading-tight">
-                  Tham Gia Chương Trình Hội Viên
-                </h4>
-                <p className="text-[11px] text-[#5a5a5a] mb-2.5 leading-relaxed">
-                  Bệnh nhân này CHƯA LÀ hội viên. Hội viên được giảm 15% tất cả tiêm chủng, ưu tiên đặt lịch, và miễn phí kiểm tra phát triển. Phí thường niên: 1.200.000 VNĐ.
-                </p>
-                <button className="px-3 py-1.5 bg-[#F59E0B] text-white text-[11px] font-bold rounded hover:bg-[#D97706] transition-colors shadow-sm">
-                  Đăng Ký Hội Viên
+              <div className="bg-[#f8f9fb] border border-[#d8d8d8] rounded-[6px] p-4 text-center w-full mt-1">
+                <p className="text-[12px] text-[#ababab] italic mb-3">Chưa có thông tin thẻ thành viên</p>
+                <button className="w-full py-2.5 bg-[#146ef5] hover:bg-[#0055d4] text-white text-[12px] font-bold rounded-[4px] transition-all flex items-center justify-center gap-2 btn-hover shadow-sm">
+                  <CreditCard className="w-4 h-4" />
+                  TẠO THẺ THÀNH VIÊN
                 </button>
               </div>
             )}

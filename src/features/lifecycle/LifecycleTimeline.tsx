@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Info, Plus, Check } from 'lucide-react';
+import { Info, Check, CreditCard } from 'lucide-react';
 import { usePatientStore } from '@/store/patientStore';
-import { lifecycleStages, lifecycles } from '@/mock/data';
-import { getProgramLabel, cn } from '@/shared/utils';
-import type { LifecycleStage, StageStatus } from '@/types';
+import { medicalHistories, memberships } from '@/mock/data';
+import { getProgramLabel, cn, formatDate } from '@/shared/utils';
+import type { StageStatus } from '@/types';
 
 const statusStyle: Record<StageStatus, { circle: string; text: string; label: string; labelCls: string; line: string }> = {
   done: {
@@ -38,26 +38,89 @@ const statusStyle: Record<StageStatus, { circle: string; text: string; label: st
 };
 
 export function LifecycleTimeline() {
-  const { selectedPatient, activeLifecycle, setActiveLifecycle } = usePatientStore();
-  const [selectedServices, setSelectedServices] = useState<number[]>([]);
+  const { selectedPatient, activeLifecycle } = usePatientStore();
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const membership = selectedPatient ? memberships.find((m) => m.patientId === selectedPatient.id && m.status === 'active') : null;
 
   useEffect(() => {
-    setSelectedServices([]);
+    // Logic for cleanup
   }, [activeLifecycle]);
-
-  const patientLifecycles = useMemo(() => {
-    if (!selectedPatient) return [];
-    return lifecycles.filter((l) => l.patientId === selectedPatient.id && l.status === 'active');
-  }, [selectedPatient]);
 
   const stages = useMemo(() => {
-    if (!activeLifecycle) return [];
-    return lifecycleStages.filter((s) => s.lifecycleId === activeLifecycle.id).sort((a, b) => a.sequence - b.sequence);
-  }, [activeLifecycle]);
+    if (!selectedPatient) return [];
 
-  const activeStage = stages.find((s) => s.status === 'active');
+    // 1. Collect all history for this patient
+    const history = medicalHistories
+      .filter((h) => h.patientId === selectedPatient.id)
+      .sort((a, b) => a.visitDate.localeCompare(b.visitDate));
 
-  if (!selectedPatient || !activeLifecycle) return null;
+    // 3. Identify all re-exams from history
+    const allReExams: any[] = [];
+    history.forEach(h => {
+      if (h.reExamDate) {
+        // Check if this re-exam was fulfilled by a visit ON THIS EXACT DATE
+        const isFulfilled = history.some(h2 => h2.visitDate === h.reExamDate);
+        if (!isFulfilled) {
+          const lifecycle = h.lifecycle || 'other';
+          allReExams.push({
+            date: h.reExamDate,
+            lifecycle: lifecycle,
+            title: `Tái khám ${lifecycle === 'vaccination' ? 'tiêm chủng' : getProgramLabel(lifecycle || 'other').toLowerCase()}`
+          });
+        }
+      }
+    });
+
+    // 4. Combine History and Re-exams into a single timeline
+    const today = '2026-05-08';
+    let foundActive = false;
+
+    // Create a combined list of events
+    const allEvents = [
+      ...history.map(h => ({ ...h, eventType: 'history' })),
+      ...allReExams.map(re => ({ ...re, eventType: 'reexam' }))
+    ].sort((a, b) => {
+      const dateA = a.visitDate || a.date;
+      const dateB = b.visitDate || b.date;
+      return dateA.localeCompare(dateB);
+    });
+
+    const finalStages = allEvents.map((ev, i) => {
+      const date = ev.visitDate || ev.date;
+      const isPast = date < today;
+      
+      let status: StageStatus = 'done';
+      if (ev.eventType === 'reexam') {
+        if (isPast) {
+          status = 'missed';
+        } else if (!foundActive) {
+          status = 'active';
+          foundActive = true;
+        } else {
+          status = 'upcoming';
+        }
+      }
+
+      return {
+        id: ev.id || `reexam-${date}-${i}`,
+        title: ev.eventType === 'history' 
+          ? (ev.lifecycle === 'vaccination' ? 'Tiêm chủng' : `Khám ${getProgramLabel(ev.lifecycle || 'other').toLowerCase()}`)
+          : ev.title,
+        sequence: i + 1,
+        status,
+        date,
+        actualServices: ev.services,
+        lifecycle: ev.lifecycle || 'other',
+        isAppointment: false
+      };
+    });
+
+    return finalStages;
+  }, [selectedPatient]);
+
+  const selectedStage = stages.find(s => s.id === selectedStageId);
+
+  if (!selectedPatient) return null;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.05 }} className="bg-white rounded-[8px] border border-[#d8d8d8] p-5">
@@ -65,33 +128,30 @@ export function LifecycleTimeline() {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <h2 className="text-[13px] font-bold text-[#080808] uppercase tracking-[0.8px]">
-            Lộ trình chăm sóc {getProgramLabel(activeLifecycle.program)}
+            Lộ trình chăm sóc & Lịch sử tổng hợp
           </h2>
           <Info className="w-3.5 h-3.5 text-[#ababab] cursor-pointer hover:text-[#146ef5] transition-colors" />
         </div>
-        {patientLifecycles.length > 1 && (
-          <div className="flex gap-1.5">
-            {patientLifecycles.map((lc) => (
-              <button key={lc.id} onClick={() => setActiveLifecycle(lc)} className={cn(
-                'px-3 py-1 rounded-[4px] text-[11px] font-semibold transition-all',
-                activeLifecycle?.id === lc.id ? 'bg-[#1a3a5c] text-white' : 'bg-[#f4f5f7] text-[#5a5a5a] hover:bg-[#e8e9eb]'
-              )}>
-                {getProgramLabel(lc.program)}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Switcher removed for unified view */}
       </div>
 
       {/* Timeline */}
-      <div className="relative overflow-x-auto pb-2 mb-4">
-        <div className="flex items-start min-w-max justify-center">
+      <div className="relative overflow-x-auto pb-2 mb-4 pt-4">
+        <div className="flex items-start min-w-max justify-center pt-2">
           {stages.map((stage, i) => (
             <div key={stage.id} className="flex items-start">
-              <StageNode stage={stage} />
+              <StageNode 
+                stage={stage} 
+                isSelected={selectedStageId === stage.id}
+                onClick={() => {
+                  if (stage.status === 'done' || stage.status === 'missed' || (stage.status === 'active' && !membership)) {
+                    setSelectedStageId(selectedStageId === stage.id ? null : stage.id);
+                  }
+                }}
+              />
               {i < stages.length - 1 && (
                 <div className="flex items-center" style={{ marginTop: 22 }}>
-                  <div className={cn('h-[3px]', stage.status === 'done' || stage.status === 'active' ? statusStyle[stage.status].line : 'bg-[#d8d8d8]')} style={{ width: 60 }} />
+                  <div className={cn('h-[3px]', stage.status === 'done' || stage.status === 'active' ? statusStyle[stage.status as StageStatus].line : 'bg-[#d8d8d8]')} style={{ width: 60 }} />
                 </div>
               )}
             </div>
@@ -99,92 +159,129 @@ export function LifecycleTimeline() {
         </div>
       </div>
 
-      {/* Services Box */}
-      {activeStage && (
-        <div className="border border-dashed border-[#ff9f43] rounded-[8px] bg-[#fff9eb] p-5">
-          <p className="text-[11px] font-bold text-[#080808] uppercase tracking-[1px] mb-3 text-center">
-            CÁC DỊCH VỤ CẦN THỰC HIỆN Ở {activeStage.title.toUpperCase()}
-          </p>
-          <div className="flex flex-wrap gap-2 justify-center mb-5">
-            {activeStage.recommendedServices.map((svc, i) => {
-              const isSelected = selectedServices.includes(i);
-              return (
+      {/* Details Box (Shows on click) */}
+      {selectedStage && (selectedStage.status === 'done' || selectedStage.status === 'missed' || (selectedStage.status === 'active' && !membership)) && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }} 
+          animate={{ opacity: 1, height: 'auto' }} 
+          className={cn(
+            "border border-dashed rounded-[8px] p-5 mt-4",
+            selectedStage.status === 'done' ? "border-[#00d722] bg-[#f0fff4]" : 
+            selectedStage.status === 'missed' ? "border-[#ee1d36] bg-[#fff5f5]" : 
+            "border-[#146ef5] bg-[#f0f6ff]"
+          )}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-bold text-[#080808] uppercase tracking-[1px]">
+              {selectedStage.status === 'done' 
+                ? `LỊCH SỬ DỊCH VỤ ĐÃ SỬ DỤNG Ở ${selectedStage.title.toUpperCase()}`
+                : selectedStage.status === 'missed'
+                  ? `CẢNH BÁO: QUÁ HẠN TÁI KHÁM ${selectedStage.title.toUpperCase()}`
+                  : `ƯU ĐÃI THÀNH VIÊN TẠI ${selectedStage.title.toUpperCase()}`
+              }
+            </p>
+            <button onClick={() => setSelectedStageId(null)} className={cn("text-[10px] font-bold hover:underline", selectedStage.status === 'done' ? "text-[#00d722]" : "text-[#146ef5]")}>Đóng</button>
+          </div>
+
+          {selectedStage.status === 'done' ? (
+            <div className="grid gap-2 mb-2 grid-cols-1 max-w-2xl mx-auto">
+              {(selectedStage.actualServices || []).map((svc: string, i: number) => (
                 <div 
                   key={i} 
-                  onClick={() => {
-                    if (isSelected) {
-                      setSelectedServices(prev => prev.filter(idx => idx !== i));
-                    } else {
-                      setSelectedServices(prev => [...prev, i]);
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-[4px] text-[12px] font-medium shadow-sm cursor-pointer transition-all border",
-                    isSelected ? "bg-[#f0f6ff] border-[#146ef5] text-[#146ef5]" : "bg-white border-[#d8d8d8] text-[#363636] hover:border-[#146ef5]/50"
-                  )}
+                  className="flex items-center gap-3 px-4 py-3 rounded-[6px] text-[13px] font-medium bg-white border border-[#e0e0e0] text-[#363636] hover:border-[#00d722]/50 shadow-sm transition-all group"
                 >
-                  <div className={cn(
-                    "w-5 h-5 rounded flex items-center justify-center border transition-colors",
-                    isSelected ? "bg-[#146ef5] border-[#146ef5] text-white" : "bg-[#f4f5f7] border-[#d8d8d8] text-[#5a5a5a]"
-                  )}>
-                    {isSelected ? <Check className="w-3 h-3" /> : <span className="text-[10px]">⚕</span>}
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center border border-[#00d722] bg-[#00d722]/10 text-[#00d722] transition-all shrink-0">
+                    <Check className="w-3.5 h-3.5" strokeWidth={3} />
                   </div>
-                  {svc}
+                  <span className="flex-1">{svc}</span>
+                  <span className="text-[11px] font-semibold text-[#00d722] bg-[#00d722]/10 px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    Hoàn thành
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-          <div className="flex gap-3 justify-center">
-            {activeStage.recommendedServices.length > 0 && selectedServices.length !== activeStage.recommendedServices.length && (
-              <button 
-                onClick={() => setSelectedServices(activeStage.recommendedServices.map((_, i) => i))}
-                className="flex items-center gap-1.5 px-6 py-2 text-[12px] font-bold text-[#146ef5] bg-white rounded-[4px] border border-[#146ef5] hover:bg-[#f4f5f7] transition-all btn-hover"
-              >
-                <Plus className="w-3.5 h-3.5" /> Thêm tất cả
+              ))}
+            </div>
+          ) : selectedStage.status === 'missed' ? (
+            <div className="flex flex-col items-center text-center py-4">
+              <p className="text-[14px] text-[#ee1d36] font-bold">
+                Bệnh nhân đã bỏ lỡ ngày tái khám này ({formatDate(selectedStage.date)})
+              </p>
+              <p className="text-[12px] text-[#5a5a5a] mt-1">
+                Vui lòng liên hệ hỗ trợ khách hàng để cập nhật lộ trình hoặc đặt lại lịch hẹn.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center text-center py-2">
+              <p className="text-[13px] text-[#363636] mb-4 max-w-md">
+                Bạn chưa có thẻ thành viên. Hãy đăng ký ngay để nhận ưu đãi 5% cho tất cả dịch vụ tại <strong>{selectedStage.title}</strong> và các giai đoạn tiếp theo.
+              </p>
+              <button className="flex items-center gap-2 px-6 py-2.5 text-[12px] font-bold text-white bg-[#146ef5] rounded-[4px] hover:bg-[#0055d4] transition-all btn-hover shadow-wf-sm">
+                <CreditCard className="w-4 h-4" /> TẠO THẺ THÀNH VIÊN NGAY
               </button>
-            )}
-            <button className="flex items-center gap-1.5 px-6 py-2 text-[12px] font-bold text-white bg-[#146ef5] rounded-[4px] hover:bg-[#0055d4] transition-all btn-hover shadow-wf-sm">
-              <Check className="w-3.5 h-3.5" /> Chọn {selectedServices.length > 0 ? selectedServices.length : ''} dịch vụ
-            </button>
-          </div>
-        </div>
+            </div>
+          )}
+        </motion.div>
       )}
     </motion.div>
   );
 }
 
-function StageNode({ stage }: { stage: LifecycleStage }) {
-  const style = statusStyle[stage.status];
+function StageNode({ stage, isSelected, onClick }: { stage: any, isSelected: boolean, onClick: () => void }) {
+  const style = statusStyle[stage.status as StageStatus];
   const num = stage.title.match(/\d+/)?.[0] || stage.sequence;
 
   return (
-    <div className="flex flex-col items-center" style={{ width: 110 }}>
+    <div 
+      className={cn(
+        "flex flex-col items-center transition-all cursor-pointer group",
+        isSelected ? "scale-110" : "hover:scale-105"
+      )} 
+      style={{ width: 110 }}
+      onClick={onClick}
+    >
       {/* Label above */}
-      <p className="text-[10px] font-semibold text-[#ababab] uppercase tracking-[0.5px] mb-1.5">
-        {stage.title.includes('Tuần') || stage.title.includes('Week') ? 'Tuần' : stage.title.includes('Mũi') ? '' : ''}
+      <p className="text-[10px] font-bold text-[#ababab] uppercase tracking-[1px] mb-2 h-3">
+        {getProgramLabel(stage.lifecycle)}
       </p>
 
       {/* Circle */}
       <div className={cn(
-        'w-12 h-12 rounded-full border-[3px] flex items-center justify-center font-bold text-[16px] transition-all',
-        style.circle,
+        'w-12 h-12 rounded-full border-[3px] flex items-center justify-center font-bold text-[16px] transition-all relative',
+        isSelected ? "shadow-[0_0_15px_rgba(20,110,245,0.3)] border-[#146ef5]" : style.circle,
         stage.status === 'active' && 'animate-glow'
       )}>
         {num}
+        {stage.status === 'done' && (
+          <div className="absolute -bottom-1 -right-1 bg-[#00d722] rounded-full p-0.5">
+            <Check className="w-2.5 h-2.5 text-white" />
+          </div>
+        )}
       </div>
 
       {/* Title */}
-      <p className={cn('text-[11px] font-semibold mt-2 text-center leading-tight', style.text)}>
-        {stage.recommendedServices[0]
-          ? (stage.recommendedServices[0].length > 22 ? stage.recommendedServices[0].slice(0, 22) + '...' : stage.recommendedServices[0])
-          : stage.title
+      <p className={cn('text-[11px] font-semibold mt-2 text-center leading-tight h-8 flex items-center justify-center px-1', style.text)}>
+        {stage.status === 'done'
+          ? (stage.title.length > 25 ? stage.title.slice(0, 25) + '...' : stage.title)
+          : (stage.title.length > 30 ? stage.title.slice(0, 30) + '...' : stage.title)
         }
       </p>
 
       {/* Status label */}
-      <span className={cn('mt-1.5 px-2 py-0.5 rounded-[4px] text-[9px] font-semibold', style.labelCls)}>
-        {style.label}
-      </span>
+      <div className="mt-1 flex flex-col items-center">
+        <span className={cn('px-2 py-0.5 rounded-[4px] text-[9px] font-semibold', style.labelCls)}>
+          {stage.status === 'active' ? 'Cần thực hiện' : style.label}
+        </span>
+        
+        {stage.isAppointment && (
+          <p className="text-[10px] mt-1 font-medium text-[#146ef5] whitespace-nowrap">
+            Ngày đặt hẹn
+          </p>
+        )}
+        {stage.date && (
+          <p className="text-[11px] font-bold text-[#080808] mt-0.5">
+            {formatDate(stage.date)}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
