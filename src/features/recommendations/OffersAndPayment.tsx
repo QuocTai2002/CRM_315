@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Gift, Check, CreditCard, UserPlus } from 'lucide-react';
+import { Gift, CreditCard } from 'lucide-react';
 import { usePatientStore } from '@/store/patientStore';
 import { useServiceStore } from '@/store/serviceStore';
 import { recommendations, memberships } from '@/mock/data';

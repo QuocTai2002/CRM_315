@@ -17,7 +17,6 @@ export function ServiceSuggestions() {
 
   if (!activeLifecycle || recs.length === 0) return null;
 
-  const stageLabel = activeLifecycle.stage?.replace(/_/g, ' ').toUpperCase() || '';
 
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}

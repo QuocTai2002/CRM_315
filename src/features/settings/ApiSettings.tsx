@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Database, RefreshCw, Trash2, Edit, Plus, X } from 'lucide-react';
 import type { Patient, Membership } from '@/types';
-import { formatDate } from '@/shared/utils';
+
 
 const API_BASE = 'https://69fd4a2430ad0a6fd1c0bcfa.mockapi.io/api/v1';
 
@@ -59,14 +59,14 @@ export function ApiSettings() {
   };
 
   const handleOpenModal = (record?: Partial<Patient & Membership> | null) => {
-    setEditingId(record ? record.id : null);
+    setEditingId(record ? record.id! : null);
     if (record) {
       setFormData(record);
     } else {
       setFormData(
         activeTab === 'patients'
           ? { code: '', fullName: '', gender: 'male', dob: '', phone: '', avatar: '', isMember: false }
-          : { patientId: '', branchId: '', specialty: '', cardCode: '', type: 'Thẻ thành viên', expiredAt: '', status: false }
+          : { patientId: '', branchId: '', specialty: '', cardCode: '', type: 'Thẻ thành viên', expiredAt: '', status: 'active' }
       );
     }
     setIsModalOpen(true);
@@ -190,7 +190,7 @@ export function ApiSettings() {
                     <td className="px-4 py-3 font-medium text-[#146ef5]">{m.cardCode}</td>
                     <td className="px-4 py-3 text-[12px] font-medium">{m.type}</td>
                     <td className="px-4 py-3">
-                      {m.status ? (
+                      {m.status === 'active' ? (
                         <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-[11px] font-bold">ACTIVE</span>
                       ) : (
                         <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-[11px] font-bold">INACTIVE</span>
@@ -241,7 +241,7 @@ export function ApiSettings() {
                   </div>
                   <div>
                     <label className="block text-[12px] font-medium mb-1">Giới tính</label>
-                    <select className="w-full border rounded px-3 py-2 text-[13px]" value={formData.gender || 'male'} onChange={(e) => setFormData({ ...formData, gender: e.target.value })}>
+                    <select className="w-full border rounded px-3 py-2 text-[13px]" value={formData.gender || 'male'} onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}>
                       <option value="male">Nam</option>
                       <option value="female">Nữ</option>
                     </select>
@@ -286,7 +286,7 @@ export function ApiSettings() {
                   </div>
                   <div>
                     <label className="flex items-center gap-2 text-[13px] font-medium cursor-pointer">
-                      <input type="checkbox" checked={formData.status || false} onChange={(e) => setFormData({ ...formData, status: e.target.checked })} />
+                      <input type="checkbox" checked={formData.status === 'active'} onChange={(e) => setFormData({ ...formData, status: e.target.checked ? 'active' : 'expired' })} />
                       Đang hoạt động (Active)
                     </label>
                   </div>

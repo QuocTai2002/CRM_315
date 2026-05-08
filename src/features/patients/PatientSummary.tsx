@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
-import { Phone, Eye, MessageSquare, CreditCard, Crown, AlertTriangle } from 'lucide-react';
+import { Phone, CreditCard, Crown, AlertTriangle } from 'lucide-react';
 import { usePatientStore } from '@/store/patientStore';
 import { memberships, lifecycleStages, encounters, appointments } from '@/mock/data';
 import { calculateAge, formatDate, getInitials, getProgramLabel } from '@/shared/utils';
 
 export function PatientSummary() {
-  const { selectedPatient, activeLifecycle, activeEncounter } = usePatientStore();
+  const { selectedPatient, activeLifecycle } = usePatientStore();
   if (!selectedPatient) return null;
 
   const age = calculateAge(selectedPatient.dob);

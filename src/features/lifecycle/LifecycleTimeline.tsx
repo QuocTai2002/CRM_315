@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Info, Plus, Check } from 'lucide-react';
 import { usePatientStore } from '@/store/patientStore';
 import { lifecycleStages, lifecycles } from '@/mock/data';
-import { getProgramLabel, formatDate, cn } from '@/shared/utils';
+import { getProgramLabel, cn } from '@/shared/utils';
 import type { LifecycleStage, StageStatus } from '@/types';
 
 const statusStyle: Record<StageStatus, { circle: string; text: string; label: string; labelCls: string; line: string }> = {
