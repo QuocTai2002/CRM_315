@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Info, Check, CreditCard } from 'lucide-react';
+import { Info, Check, CreditCard, X } from 'lucide-react';
 import { usePatientStore } from '@/store/patientStore';
 import { medicalHistories, memberships } from '@/mock/data';
 import { getProgramLabel, cn, formatDate } from '@/shared/utils';
@@ -29,11 +29,11 @@ const statusStyle: Record<StageStatus, { circle: string; text: string; label: st
     line: 'bg-[#d8d8d8]',
   },
   missed: {
-    circle: 'bg-white border-[#ee1d36] text-[#ee1d36]',
-    text: 'text-[#ee1d36]',
+    circle: 'bg-white border-[#d8d8d8] text-[#ababab]',
+    text: 'text-[#ababab]',
     label: 'Bỏ lỡ',
     labelCls: 'bg-[#ee1d36]/10 text-[#ee1d36]',
-    line: 'bg-[#ee1d36]',
+    line: 'bg-[#d8d8d8]',
   },
 };
 
@@ -150,7 +150,7 @@ export function LifecycleTimeline() {
                 }}
               />
               {i < stages.length - 1 && (
-                <div className="flex items-center" style={{ marginTop: 22 }}>
+                <div className="flex items-center" style={{ marginTop: 43 }}>
                   <div className={cn('h-[3px]', stage.status === 'done' || stage.status === 'active' ? statusStyle[stage.status as StageStatus].line : 'bg-[#d8d8d8]')} style={{ width: 60 }} />
                 </div>
               )}
@@ -176,7 +176,7 @@ export function LifecycleTimeline() {
               {selectedStage.status === 'done' 
                 ? `LỊCH SỬ DỊCH VỤ ĐÃ SỬ DỤNG Ở ${selectedStage.title.toUpperCase()}`
                 : selectedStage.status === 'missed'
-                  ? `CẢNH BÁO: QUÁ HẠN TÁI KHÁM ${selectedStage.title.toUpperCase()}`
+                  ? `QUÁ HẠN TÁI KHÁM ${selectedStage.title.toUpperCase()}`
                   : `ƯU ĐÃI THÀNH VIÊN TẠI ${selectedStage.title.toUpperCase()}`
               }
             </p>
@@ -246,13 +246,19 @@ function StageNode({ stage, isSelected, onClick }: { stage: any, isSelected: boo
       {/* Circle */}
       <div className={cn(
         'w-12 h-12 rounded-full border-[3px] flex items-center justify-center font-bold text-[16px] transition-all relative',
-        isSelected ? "shadow-[0_0_15px_rgba(20,110,245,0.3)] border-[#146ef5]" : style.circle,
+        style.circle,
+        isSelected && "shadow-[0_0_12px_rgba(0,0,0,0.1)]",
         stage.status === 'active' && 'animate-glow'
       )}>
         {num}
         {stage.status === 'done' && (
-          <div className="absolute -bottom-1 -right-1 bg-[#00d722] rounded-full p-0.5">
-            <Check className="w-2.5 h-2.5 text-white" />
+          <div className="absolute -bottom-1 -right-1 bg-[#00d722] rounded-full p-0.5 shadow-sm">
+            <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />
+          </div>
+        )}
+        {stage.status === 'missed' && (
+          <div className="absolute -bottom-1 -right-1 bg-[#ee1d36] rounded-full p-0.5 shadow-sm">
+            <X className="w-2.5 h-2.5 text-white" strokeWidth={4} />
           </div>
         )}
       </div>
@@ -267,9 +273,11 @@ function StageNode({ stage, isSelected, onClick }: { stage: any, isSelected: boo
 
       {/* Status label */}
       <div className="mt-1 flex flex-col items-center">
-        <span className={cn('px-2 py-0.5 rounded-[4px] text-[9px] font-semibold', style.labelCls)}>
-          {stage.status === 'active' ? 'Cần thực hiện' : style.label}
-        </span>
+        {(stage.status !== 'done' && stage.status !== 'missed') && (
+          <span className={cn('px-2 py-0.5 rounded-[4px] text-[9px] font-semibold', style.labelCls)}>
+            {stage.status === 'active' ? 'Cần thực hiện' : style.label}
+          </span>
+        )}
         
         {stage.isAppointment && (
           <p className="text-[10px] mt-1 font-medium text-[#146ef5] whitespace-nowrap">
